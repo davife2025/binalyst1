@@ -1,0 +1,30 @@
+{
+  "name": "Binalyst",
+  "short_name": "Binalyst",
+  "description": "AI-powered Binance assistant",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0E11",
+  "theme_color": "#F0B90B",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "utilities"],
+  "shortcuts": [
+    { "name": "Markets",   "url": "/?tab=markets",   "description": "Live market prices" },
+    { "name": "Portfolio", "url": "/?tab=portfolio", "description": "My portfolio" },
+    { "name": "Events",    "url": "/?tab=events",    "description": "Binance events radar" }
+  ]
+}

@@ -9,11 +9,11 @@ type BinanceEvent = {
 }
 
 const TYPE_CONFIG = {
-  listing:    { icon: '🪙', label: 'Listing',    bg: 'rgba(240,185,11,0.12)',  color: 'var(--yellow)' },
-  trading:    { icon: '📈', label: 'Trading',    bg: 'rgba(14,203,129,0.12)', color: 'var(--green)'  },
-  airdrop:    { icon: '🪂', label: 'Airdrop',    bg: 'rgba(114,137,218,0.15)',color: '#7289da'       },
-  launchpool: { icon: '🌾', label: 'Launchpool', bg: 'rgba(52,152,219,0.12)', color: '#3498db'       },
-  other:      { icon: '◎',  label: 'Other',      bg: 'var(--bg4)',            color: 'var(--text2)'  },
+  listing:    { icon: '', label: 'Listing',    bg: 'rgba(240,185,11,0.12)',  color: 'var(--yellow)' },
+  trading:    { icon: '', label: 'Trading',    bg: 'rgba(14,203,129,0.12)', color: 'var(--green)'  },
+  airdrop:    { icon: '', label: 'Airdrop',    bg: 'rgba(114,137,218,0.15)',color: '#7289da'       },
+  launchpool: { icon: '', label: 'Launchpool', bg: 'rgba(52,152,219,0.12)', color: '#3498db'       },
+  other:      { icon: '',  label: 'Other',      bg: 'var(--bg4)',            color: 'var(--text2)'  },
 }
 
 function pad(n: number) { return String(n).padStart(2, '0') }

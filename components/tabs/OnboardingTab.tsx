@@ -70,7 +70,7 @@ const CRYPTO_SYMBOLS = [
 const STRATEGY_TEMPLATES = [
   {
     name: 'BTC Adaptive',
-    icon: '🧠',
+    icon: '',
     desc: 'Auto-switches trend-follow ↔ mean-revert by regime',
     text: `Buy BTC with 8% when signal score is above 70 and RSI is below 60.
 Sell BTC when signal score is below 35 or RSI exceeds 75.
@@ -78,7 +78,7 @@ Hold when regime is flat or drawdown exceeds 10%.`,
   },
   {
     name: 'RSI Mean Reversion',
-    icon: '↔️',
+    icon: '↔',
     desc: 'Buy oversold dips, sell overbought spikes',
     text: `Buy when RSI drops below 30 and BB%B below 20%.
 Sell when RSI exceeds 70 and BB%B above 80%.
@@ -86,7 +86,7 @@ Hold when ADX is above 25 (trending market).`,
   },
   {
     name: 'Trend Follow',
-    icon: '📈',
+    icon: '',
     desc: 'Ride strong trends with momentum confirmation',
     text: `Buy when MACD line crosses above signal and ADX is above 25.
 Sell when MACD line crosses below signal.
@@ -94,7 +94,7 @@ Hold when regime is ranging or flat.`,
   },
   {
     name: 'Fear DCA',
-    icon: '😨',
+    icon: '',
     desc: 'Accumulate during extreme fear (crypto only)',
     text: `Buy with 10% when Fear & Greed drops below 25.
 Buy with 5% when Fear & Greed is below 35 and RSI below 40.

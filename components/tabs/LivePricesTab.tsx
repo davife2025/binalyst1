@@ -18,10 +18,10 @@ const MARKET_TYPES = ['crypto', 'forex', 'stocks', 'meme'] as const
 type  MarketType   = typeof MARKET_TYPES[number]
 
 const MARKET_META: Record<MarketType, { icon: string; label: string; color: string }> = {
-  crypto: { icon: '₿', label: 'Crypto',     color: '#3498db' },
-  forex:  { icon: '💱', label: 'Forex',      color: '#9b59b6' },
-  stocks: { icon: '📈', label: 'Stocks',     color: '#0ECB81' },
-  meme:   { icon: '🐸', label: 'Meme coins', color: '#F6465D' },
+  crypto: { icon: '', label: 'Crypto',     color: '#3498db' },
+  forex:  { icon: '', label: 'Forex',      color: '#9b59b6' },
+  stocks: { icon: '', label: 'Stocks',     color: '#0ECB81' },
+  meme:   { icon: '', label: 'Meme coins', color: '#F6465D' },
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

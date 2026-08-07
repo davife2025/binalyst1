@@ -5,15 +5,15 @@ import { useRef, useState } from 'react'
 type Msg = { role: 'user' | 'assistant'; content: string; id: string }
 
 const LESSONS = [
-  { icon: '📊', title: 'Spot Trading Basics',     level: 'beginner',     prompt: 'Explain spot trading: order types (market, limit, stop-limit), how to read the order book, trading fees, and tips for beginners. Use real-world examples from any major exchange.' },
-  { icon: '⚡', title: 'Futures & Leverage',       level: 'intermediate', prompt: 'Explain Binance Futures: long vs short, leverage, margin, liquidation price, funding rates. Give a practical example with numbers.' },
-  { icon: '🌾', title: 'DeFi Yield Farming',       level: 'beginner',     prompt: 'How does DeFi liquidity protocols work? How do I stake BNB or FDUSD to earn new tokens? What are the risks? Give step-by-step instructions.' },
-  { icon: '🪂', title: 'Token Airdrops & Rewards',          level: 'intermediate', prompt: 'What are crypto airdrops? How do I qualify? What is early-stage crypto projects? Walk me through how to claim step by step.' },
-  { icon: '🔄', title: 'DCA & Auto-Invest',        level: 'beginner',     prompt: 'Explain dollar-cost averaging (DCA) for crypto. How does crypto auto-invest tools work? What are the best practices and how to set it up?' },
-  { icon: '🔗', title: 'On-Chain Analysis',        level: 'advanced',     prompt: 'Explain on-chain analysis for crypto trading: exchange inflows/outflows, whale wallets, SOPR, MVRV. How can I use this to trade better in crypto?' },
-  { icon: '📈', title: 'Technical Analysis',       level: 'intermediate', prompt: 'Teach me practical TA for crypto: support/resistance, RSI, MACD, Bollinger Bands. How do I apply these using charting tools?' },
-  { icon: '🛡️', title: 'Risk Management',          level: 'beginner',     prompt: 'Explain crypto risk management: position sizing, stop-losses, portfolio allocation. What are the golden rules for trading safely?' },
-  { icon: '💰', title: 'Crypto Staking & Earning',             level: 'beginner',     prompt: 'What are all the Crypto Staking & Earning products? Simple Earn, Flexible, Locked, ETH staking, LDUSDT. Compare them and tell me which is best for different goals.' },
+  { icon: '', title: 'Spot Trading Basics',     level: 'beginner',     prompt: 'Explain spot trading: order types (market, limit, stop-limit), how to read the order book, trading fees, and tips for beginners. Use real-world examples from any major exchange.' },
+  { icon: '', title: 'Futures & Leverage',       level: 'intermediate', prompt: 'Explain Binance Futures: long vs short, leverage, margin, liquidation price, funding rates. Give a practical example with numbers.' },
+  { icon: '', title: 'DeFi Yield Farming',       level: 'beginner',     prompt: 'How does DeFi liquidity protocols work? How do I stake BNB or FDUSD to earn new tokens? What are the risks? Give step-by-step instructions.' },
+  { icon: '', title: 'Token Airdrops & Rewards',          level: 'intermediate', prompt: 'What are crypto airdrops? How do I qualify? What is early-stage crypto projects? Walk me through how to claim step by step.' },
+  { icon: '', title: 'DCA & Auto-Invest',        level: 'beginner',     prompt: 'Explain dollar-cost averaging (DCA) for crypto. How does crypto auto-invest tools work? What are the best practices and how to set it up?' },
+  { icon: '', title: 'On-Chain Analysis',        level: 'advanced',     prompt: 'Explain on-chain analysis for crypto trading: exchange inflows/outflows, whale wallets, SOPR, MVRV. How can I use this to trade better in crypto?' },
+  { icon: '', title: 'Technical Analysis',       level: 'intermediate', prompt: 'Teach me practical TA for crypto: support/resistance, RSI, MACD, Bollinger Bands. How do I apply these using charting tools?' },
+  { icon: '', title: 'Risk Management',          level: 'beginner',     prompt: 'Explain crypto risk management: position sizing, stop-losses, portfolio allocation. What are the golden rules for trading safely?' },
+  { icon: '', title: 'Crypto Staking & Earning',             level: 'beginner',     prompt: 'What are all the Crypto Staking & Earning products? Simple Earn, Flexible, Locked, ETH staking, LDUSDT. Compare them and tell me which is best for different goals.' },
 ]
 
 const LEVEL_STYLE = {

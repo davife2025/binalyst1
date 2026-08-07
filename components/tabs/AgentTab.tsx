@@ -27,7 +27,7 @@ const TRIGGER_LABELS: Record<RuleTrigger, string> = {
 }
 
 const ACTION_LABELS: Record<RuleAction, string> = {
-  alert:   '🔔 Browser alert',
+  alert:   'Browser alert',
   analyze: '◈ AI analysis',
   log:     '📋 Log only',
 }

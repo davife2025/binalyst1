@@ -3,11 +3,11 @@ import Providers from '@/components/Providers'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Binalyst — BNB Chain AI Trading Platform',
-  description: 'Autonomous trading agent powered by CMC signals, AI strategy, and TWAK self-custody signing on BSC. Live competition trading with Fear & Greed intelligence.',
+  title: 'Binalyst — AI Trading Platform',
+  description: 'Autonomous trading agent powered by CMC signals, AI strategy, and TWAK self-custody signing ',
   icons: { icon: '/favicon.ico' },
   openGraph: {
-    title: 'Binalyst — BNB Chain AI Trading Platform',
+    title: 'Binalyst  AI Trading Platform',
     description: 'Autonomous BSC trading agent · CMC intelligence · Self-custodial TWAK signing · Live competition',
     type: 'website',
   },

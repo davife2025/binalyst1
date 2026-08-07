@@ -32,9 +32,9 @@ const PRESET_META: Record<RiskPreset, {
   borderColor: string
   tagline:     string
 }> = {
-  conservative: { icon: '🛡️', color: 'var(--blue)',  borderColor: '#3498db', tagline: 'Capital preservation first'   },
-  moderate:     { icon: '⚖️', color: 'var(--yellow)', borderColor: '#F0B90B', tagline: 'Balanced risk and reward'      },
-  aggressive:   { icon: '🚀', color: 'var(--red)',    borderColor: '#F6465D', tagline: 'Maximum growth, higher risk'   },
+  conservative: { icon: '', color: 'var(--blue)',  borderColor: '#3498db', tagline: 'Capital preservation first'   },
+  moderate:     { icon: '', color: 'var(--yellow)', borderColor: '#F0B90B', tagline: 'Balanced risk and reward'      },
+  aggressive:   { icon: '', color: 'var(--red)',    borderColor: '#F6465D', tagline: 'Maximum growth, higher risk'   },
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

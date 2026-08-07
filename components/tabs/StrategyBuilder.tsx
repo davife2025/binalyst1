@@ -34,14 +34,14 @@ import type { TechnicalSnapshot } from '@/lib/skills/bitget-technicals'
 const TEMPLATES = [
   {
     name: 'BTC Adaptive',
-    icon: '🧠',
+    icon: '',
     desc: 'Auto-switches trend-follow ↔ mean-revert by regime',
     text: BTC_ADAPTIVE_TEMPLATE_TEXT,
     isNew: true,
   },
   {
     name: 'Mean Reversion',
-    icon: '↔️',
+    icon: '↔',
     desc: 'Buy oversold dips, sell overbought spikes (RSI + BB)',
     text: `Buy ETH with 8% when RSI drops below 32 and BB%B below 20%.
 Sell ETH when RSI exceeds 68 and BB%B above 80%.
@@ -52,7 +52,7 @@ Hold cash when regime is flat or trending down.`,
   },
   {
     name: 'Fear DCA',
-    icon: '😨',
+    icon: '',
     desc: 'Buy during extreme fear, sell into greed',
     text: `Buy ETH with 10% of portfolio when Fear & Greed drops below 25 (extreme fear).
 Buy CAKE with 8% when Fear & Greed is below 30 and signal score above 65.
@@ -63,7 +63,7 @@ Always keep at least 20% in USDT as reserve.`,
   },
   {
     name: 'Momentum Rider',
-    icon: '🚀',
+    icon: '',
     desc: 'Chase strong momentum with tight stops',
     text: `Buy AVAX with 12% when signal score exceeds 75 and 24h change is above 5%.
 Buy BTC with 10% when CMC trending and signal score above 70.
@@ -74,7 +74,7 @@ Rotate into USDT when Fear & Greed exceeds 80.`,
   },
   {
     name: 'Sentiment Rotator',
-    icon: '🔄',
+    icon: '',
     desc: 'Rotate between assets based on sentiment shifts',
     text: `When Fear & Greed is below 35, allocate 15% to ETH and 10% to ADA.
 When Fear & Greed is between 50-65, rotate 12% into LINK and DOT.
@@ -84,7 +84,7 @@ Buy DOGE with 8% when volume spike detected and signal above 68.`,
   },
   {
     name: 'Conservative DCA',
-    icon: '🛡️',
+    icon: '',
     desc: 'Small steady positions, low risk, max drawdown protection',
     text: `Buy ETH with 8% every time signal score exceeds 70. Max 2 buys per day.
 Buy USDT when drawdown approaches 20% (exit all positions).

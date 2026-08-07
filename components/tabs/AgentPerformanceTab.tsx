@@ -254,9 +254,9 @@ export default function AgentPerformanceTab() {
         {/* Tab strip */}
         <div className="flex gap-1 px-6 pt-4 border-b shrink-0" style={{ borderColor: 'var(--border)' }}>
           {([
-            { id: 'portfolio', label: '◑ Portfolio' },
-            { id: 'pnl',       label: '📈 PnL Chart' },
-            { id: 'alerts',    label: `🔔 Alerts (${alerts.filter(a => a.active).length})` },
+            { id: 'portfolio', label: ' Portfolio' },
+            { id: 'pnl',       label: ' PnL Chart' },
+            { id: 'alerts',    label: ` Alerts (${alerts.filter(a => a.active).length})` },
           ] as const).map(tab => (
             <button key={tab.id} onClick={() => setView(tab.id)}
               className="mono text-xs px-4 py-2 rounded-t-lg transition-all"

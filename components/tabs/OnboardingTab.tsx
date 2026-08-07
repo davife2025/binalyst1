@@ -346,7 +346,7 @@ export default function OnboardingTab() {
   if (complete) {
     return (
       <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col items-center gap-5 text-center">
-        <div className="text-5xl">🚀</div>
+        <div className="text-5xl"></div>
         <h2 className="text-xl font-bold" style={{ color: 'var(--text)' }}>You're set up</h2>
         <p className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
           Head to <strong style={{ color: 'var(--yellow)' }}>Live Agent</strong> in the sidebar to start your autonomous agent.
@@ -464,7 +464,7 @@ export default function OnboardingTab() {
                       color:      walletMode === m ? '#000' : 'var(--text2)',
                       border:     '1px solid var(--border)',
                     }}>
-                    {m === 'generate' ? '⚡ Generate new' : m === 'import-key' ? '🔑 Private key' : '📝 Seed phrase'}
+                    {m === 'generate' ? '⚡ Generate new' : m === 'import-key' ? ' Private key' : 'Seed phrase'}
                   </button>
                 ))}
               </div>
@@ -538,10 +538,10 @@ export default function OnboardingTab() {
           <Label>What do you want to trade?</Label>
           <div className="grid grid-cols-2 gap-3">
             {([
-              { type: 'crypto', icon: '₿', label: 'Crypto',     sub: 'BTC, ETH, altcoins — live execution on GOAT / BSC'    },
-              { type: 'forex',  icon: '💱', label: 'Forex',      sub: 'EUR/USD, GBP/USD — signals via Twelve Data'           },
-              { type: 'stocks', icon: '📈', label: 'Stocks',     sub: 'AAPL, TSLA, NVDA — signals via Twelve Data'           },
-              { type: 'meme',   icon: '🐸', label: 'Meme coins', sub: 'PEPE, BONK, DOGE — high volatility, tight risk'      },
+              { type: 'crypto', icon: '', label: 'Crypto',     sub: 'BTC, ETH, altcoins — live execution on GOAT / BSC'    },
+              { type: 'forex',  icon: '', label: 'Forex',      sub: 'EUR/USD, GBP/USD — signals via Twelve Data'           },
+              { type: 'stocks', icon: '', label: 'Stocks',     sub: 'AAPL, TSLA, NVDA — signals via Twelve Data'           },
+              { type: 'meme',   icon: '', label: 'Meme coins', sub: 'PEPE, BONK, DOGE — high volatility, tight risk'      },
             ] as { type: MarketType; icon: string; label: string; sub: string }[]).map(m => (
               <button key={m.type} onClick={() => { setMarketType(m.type); setSelectedAsset(
                 m.type === 'forex' ? 'EUR/USD' : m.type === 'stocks' ? 'AAPL' : m.type === 'meme' ? 'PEPE' : 'BTC'

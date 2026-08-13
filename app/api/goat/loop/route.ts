@@ -121,23 +121,39 @@ export async function POST(req: NextRequest) {
       }
 
       // ── Live execution via GoatClient ─────────────────────────────────
-      // NOTE: For mainnet, tokenIn/tokenOut must be resolved to real
-      // GOAT-mainnet ERC-20 addresses (WBTC, USDC etc).
-      // Until WBTC_GOAT_MAINNET / USDC_GOAT_MAINNET are confirmed from
-      // explorer.goat.network/tokens, we run in testnet3 simulation mode.
       // Stable, time-bucketed task id: same signal + same 2-minute cycle
       // replays safely if this request is retried; a new cycle is new work.
       const cycleBucket = new Date(Math.floor(Date.now() / 120_000) * 120_000).toISOString()
       const taskId = `goat-loop-${signal.symbol}-${signal.action}-${cycleBucket}`
 
-      const result = await client.swap({
-        tokenIn:    'BTC',   // native — placeholder until ERC-20 addresses confirmed
-        tokenOut:   'BTC',   // placeholder
-        amountIn:   amountUSD / 30_000, // rough BTC equivalent
-        decimalsIn: 18,
-        feeTier:    3000,
-        slippagePct: riskProfile.slippagePct,
-      }, taskId)
+      let result: { success: boolean; txHash: string; error?: string; simulated?: boolean }
+
+      if (network !== 'mainnet') {
+        // Uniswap V3 isn't deployed on GOAT testnet3, so client.swap() always
+        // returns a hardcoded local simulation there regardless of dryRun —
+        // it never touches the chain. To actually exercise a genuine signed
+        // + broadcast + chain-verified testnet3 transaction (via KeeperHub if
+        // KEEPERHUB_API_KEY is set, else the local signer fallback), use a
+        // native BTC send as the onchain leg instead. This is not a real
+        // token swap — there's no DEX to swap against on testnet3 — it's the
+        // closest thing to a genuine verifiable onchain tx the agent can
+        // produce there.
+        result = await client.sendBTC(client.address, amountUSD / 30_000, taskId)
+      } else {
+        // NOTE: For mainnet, tokenIn/tokenOut must be resolved to real
+        // GOAT-mainnet ERC-20 addresses (WBTC, USDC etc). Until
+        // WBTC_GOAT_MAINNET / USDC_GOAT_MAINNET are confirmed from
+        // explorer.goat.network/tokens, mainnet ERC-20 swaps won't run for
+        // real — see lib/goat/config.ts.
+        result = await client.swap({
+          tokenIn:    'BTC',   // native — placeholder until ERC-20 addresses confirmed
+          tokenOut:   'BTC',   // placeholder
+          amountIn:   amountUSD / 30_000, // rough BTC equivalent
+          decimalsIn: 18,
+          feeTier:    3000,
+          slippagePct: riskProfile.slippagePct,
+        }, taskId)
+      }
 
       if (result.success) {
         trades.push({ ...base, txHash: result.txHash, status: result.simulated ? 'simulated' : 'confirmed', pnlUSD: 0 })

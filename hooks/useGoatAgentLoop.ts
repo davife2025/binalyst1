@@ -17,7 +17,7 @@ const LOOP_MS = 120_000
 export function useGoatAgentLoop() {
   const {
     privateKey, agentAddress, isWalletLoaded, network, riskProfile,
-    marketType, selectedAsset,
+    marketType, selectedAsset, dryRun,
     session, initSession, updateSession,
     portfolioUSD, btcBalance, setBtcBalance, setPortfolioUSD,
     addTrade, trades,
@@ -78,7 +78,7 @@ export function useGoatAgentLoop() {
           todayTrades:  todayTrades(),
           portfolioUSD: session?.currentUSD ?? 0,
           drawdownPct,
-          dryRun:       true,  // default safe — user flips in LiveAgentTab
+          dryRun,       // from useGoatStore — set by the LiveAgentTab toggle
           signals,
           rules:        [],
         }),
@@ -113,7 +113,7 @@ export function useGoatAgentLoop() {
     }
 
     setIsRunning(false)
-  }, [privateKey, isWalletLoaded, network, riskProfile, marketType, selectedAsset,
+  }, [privateKey, isWalletLoaded, network, riskProfile, marketType, selectedAsset, dryRun,
       session, portfolioUSD, btcBalance, drawdownPct, isRunning,
       todayTrades, setBtcBalance, setPortfolioUSD, updateSession, addTrade])
 

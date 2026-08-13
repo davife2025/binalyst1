@@ -98,6 +98,13 @@ interface GoatStore {
   setSelectedAsset: (s: string) => void
   setRiskProfile:   (p: RiskProfile) => void
 
+  // ── Execution mode ────────────────────────────────────────────────────────
+  // Single source of truth for dry-run vs live, read by both the loop hook
+  // (what it sends to /api/goat/loop) and the LiveAgentTab toggle (what the
+  // user sees/sets) — previously these were disconnected (see Session 9 fix).
+  dryRun:    boolean
+  setDryRun: (v: boolean) => void
+
   // ── Session ────────────────────────────────────────────────────────────────
   session:       GoatSession | null
   initSession:   (startUSD: number) => void
@@ -150,6 +157,10 @@ export const useGoatStore = create<GoatStore>()(
       setMarketType:    (t) => set({ marketType: t }),
       setSelectedAsset: (s) => set({ selectedAsset: s }),
       setRiskProfile:   (p) => set({ riskProfile: p }),
+
+      // ── Execution mode ───────────────────────────────────────────────────
+      dryRun:    true,   // safe by default — user must explicitly flip to live
+      setDryRun: (v) => set({ dryRun: v }),
 
       // ── Session ───────────────────────────────────────────────────────────
       session: null,
@@ -204,6 +215,7 @@ export const useGoatStore = create<GoatStore>()(
         marketType:     s.marketType,
         selectedAsset:  s.selectedAsset,
         riskProfile:    s.riskProfile,
+        dryRun:         s.dryRun,
         session:        s.session,
         trades:         s.trades.slice(0, 100),
         agentId:        s.agentId,

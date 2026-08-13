@@ -76,7 +76,7 @@ export default function LiveAgentTab() {
     agentAddress, privateKey, encryptedKey, isWalletLoaded,
     network, btcBalance, portfolioUSD, session,
     setWallet, setEncryptedKey, clearWallet, setNetwork,
-    riskProfile, trades,
+    riskProfile, trades, dryRun, setDryRun,
   } = useGoatStore()
 
   const {
@@ -95,7 +95,6 @@ export default function LiveAgentTab() {
   const [unlockPass,  setUnlockPass] = useState('')
   const [generated,   setGenerated]  = useState<{ address: string; privateKey: string; mnemonic: string } | null>(null)
   const [showSeed,    setShowSeed]   = useState(false)
-  const [dryRun,      setDryRun]     = useState(true)
   const [loading,     setLoading]    = useState(false)
   const [error,       setError]      = useState('')
   const [copied,      setCopied]     = useState('')

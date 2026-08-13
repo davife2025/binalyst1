@@ -8,7 +8,7 @@
  */
 
 import { NextResponse }         from 'next/server'
-import { validateEnv, hasSupabaseServiceRole, hasTwelveData, hasGoatKey, hasX402 } from '@/lib/env'
+import { validateEnv, hasSupabaseServiceRole, hasTwelveData, hasGoatKey, hasX402, hasKeeperHubKey } from '@/lib/env'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +18,8 @@ export async function GET() {
   const features = {
     supabase_persistence: hasSupabaseServiceRole(),
     forex_stocks_signals: hasTwelveData(),
-    goat_agent:           hasGoatKey(),
+    keeperhub_execution:  hasKeeperHubKey(),  // mainnet trades require this
+    goat_testnet_dryrun:  hasGoatKey(),
     x402_payments:        hasX402(),
     bsc_agent:            !!process.env.CMC_API_KEY,
   }

@@ -8,12 +8,18 @@ trade autonomously — across crypto, forex, stocks, and meme coins.
 ## Architecture
 
 ```
-Signal engine (23 indicators) → strategy rules → guardrails → GOAT execution
+Signal engine (23 indicators) → strategy rules → guardrails → KeeperHub execution
        ↓                              ↓                              ↓
-   CMC / Binance              user RiskProfile               Uniswap V3 on
-   Twelve Data                   (not hardcoded)             GOAT Network
-   DexScreener
+   CMC / Binance              user RiskProfile          simulate → broadcast → verify
+   Twelve Data                   (not hardcoded)         Uniswap V3 on GOAT Network,
+   DexScreener                                           signed by KeeperHub's wallet
 ```
+
+GOAT Network is still the chain the agent trades on. [KeeperHub](https://docs.keeperhub.com)
+is the execution layer in front of it: it holds the signing wallet, applies
+smart gas estimation and MEV-protected private routing, and returns a
+chain-verified receipt for every trade — see `lib/keeperhub/client.ts` and
+[`KEEPERHUB_MIGRATION.md`](./KEEPERHUB_MIGRATION.md) for the full rationale.
 
 ## Stack
 
@@ -22,9 +28,9 @@ Signal engine (23 indicators) → strategy rules → guardrails → GOAT executi
 - **Database**: Supabase (Postgres, RLS, real-time)
 - **Auth**: NextAuth.js
 - **Blockchain**: GOAT Network (EVM, BTC gas, chain ID 2345)
-- **Execution**: Uniswap V3 on GOAT Mainnet via ethers.js v6
-- **Agent identity**: ERC-8004 (GOAT AgentKit SDK)
-- **Payments**: x402 machine-to-machine (GOAT AgentKit SDK)
+- **Execution**: [KeeperHub](https://docs.keeperhub.com) Direct Execution API — Uniswap V3 on GOAT Mainnet, signed and broadcast by KeeperHub (see `lib/keeperhub/`)
+- **Agent identity**: ERC-8004 (GOAT AgentKit SDK) — unchanged, still GOAT-specific
+- **Payments**: x402 machine-to-machine (GOAT AgentKit SDK) — unchanged; KeeperHub also offers its own Tempo/x402 tooling if you want to consolidate later
 - **Market data**: CMC (crypto), Twelve Data (forex/stocks), DexScreener (meme)
 
 ## Markets supported
@@ -92,7 +98,10 @@ agent cycle checks the user's configured `maxDrawdownPct`, `maxPositionPct`,
 real transactions. Default: on. Flip in the Live Agent tab.
 
 **Autonomous mode** — real on-chain transactions. Requires dry run off +
-GOAT agent private key configured.
+`KEEPERHUB_API_KEY` configured with a funded, wallet-linked KeeperHub
+organization (see `KEEPERHUB_MIGRATION.md`). On mainnet the agent never
+signs locally — every trade goes through KeeperHub's simulate → broadcast
+→ verified-receipt sequence.
 
 **ERC-8004** — the agent registers an on-chain identity (ERC-721 NFT) via
 GOAT AgentKit. Makes the agent discoverable and trackable across the GOAT

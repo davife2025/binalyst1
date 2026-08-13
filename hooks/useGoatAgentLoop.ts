@@ -16,7 +16,7 @@ const LOOP_MS = 120_000
 
 export function useGoatAgentLoop() {
   const {
-    privateKey, isWalletLoaded, network, riskProfile,
+    privateKey, agentAddress, isWalletLoaded, network, riskProfile,
     marketType, selectedAsset,
     session, initSession, updateSession,
     portfolioUSD, btcBalance, setBtcBalance, setPortfolioUSD,
@@ -66,11 +66,15 @@ export function useGoatAgentLoop() {
       }).catch(() => null)
       const signals = sigRes?.ok ? (await sigRes.json()).signals ?? [] : []
 
+      // Mainnet trades execute through KeeperHub server-side — the server
+      // only needs the wallet address, never the private key. The key is
+      // only sent for the testnet3 local dry-run fallback.
       const res = await fetch('/api/goat/loop', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          privateKey, network, riskProfile, marketType, selectedAsset,
+          ...(network === 'mainnet' ? { agentAddress } : { privateKey }),
+          network, riskProfile, marketType, selectedAsset,
           todayTrades:  todayTrades(),
           portfolioUSD: session?.currentUSD ?? 0,
           drawdownPct,

@@ -23,7 +23,7 @@ export default function AgentWalletTab() {
   if (isWalletLoaded && agentAddress) {
     return (
       <div className="max-w-xl mx-auto px-6 py-10 flex flex-col items-center gap-5 text-center">
-        <div className="text-4xl">✅</div>
+        <div className="text-4xl"></div>
         <h2 className="text-base font-bold" style={{ color: 'var(--text)' }}>Wallet ready</h2>
         <div className="rounded-xl p-4 w-full text-left" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
           <div className="font-mono text-[9px] uppercase tracking-widest mb-1" style={{ color: 'var(--text3)' }}>Agent wallet</div>
@@ -62,7 +62,7 @@ export default function AgentWalletTab() {
 
   return (
     <div className="max-w-xl mx-auto px-6 py-10 flex flex-col items-center gap-5 text-center">
-      <div className="text-4xl">🔐</div>
+      <div className="text-4xl"></div>
       <h2 className="text-base font-bold" style={{ color: 'var(--text)' }}>Set up your agent wallet</h2>
       <p className="font-mono text-[10px]" style={{ color: 'var(--text3)' }}>
         Binalyst v2 uses a self-custodial GOAT Network wallet for autonomous trading.
@@ -75,7 +75,7 @@ export default function AgentWalletTab() {
           onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--yellow)')}
           onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🚀</span>
+            <span className="text-2xl"></span>
             <div>
               <div className="font-bold text-sm mb-0.5" style={{ color: 'var(--text)' }}>New here? Start Onboarding</div>
               <div className="font-mono text-[10px]" style={{ color: 'var(--text3)' }}>

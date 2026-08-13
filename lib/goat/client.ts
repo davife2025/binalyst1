@@ -1,16 +1,22 @@
 /**
- * lib/goat/client.ts — Session 2
+ * lib/goat/client.ts — Session 2, re-platformed on KeeperHub
  *
- * GoatClient — execution layer for the GOAT Network autonomous trading agent.
- * Same pattern as lib/twak/client.ts (BSC/PancakeSwap) but for GOAT Network.
- * Fully independent — no imports from lib/twak/.
+ * GoatClient — trading client for the GOAT Network autonomous agent.
+ * GOAT Network is still the *chain* the agent trades on (native BTC gas,
+ * Uniswap V3 deployed on mainnet); KeeperHub is now the *execution layer*
+ * that actually signs and broadcasts — see https://docs.keeperhub.com.
  *
  * Execution path:
- *  BTC balance check → Uniswap V3 QuoterV2 (price quote) →
- *  SwapRouter02 (exactInputSingle) → receipt → trade record
+ *  BTC balance check (read-only RPC) → Uniswap V3 QuoterV2 (price quote,
+ *  read-only) → KeeperHub simulate → KeeperHub broadcast (signed by the
+ *  org's KeeperHub-managed wallet, smart gas + MEV-protected private
+ *  routing, audit-logged) → chain-verified receipt → trade record
  *
- * Mainnet-only for swaps (Uniswap V3 deployed mainnet only).
- * Testnet3: BTC transfers work, swaps return a dry-run simulation.
+ * All reads (balances, quotes) stay on direct RPC — no wallet needed.
+ * All writes (transfers, swaps, approvals) go through KeeperHub's Direct
+ * Execution API (lib/keeperhub/client.ts) on mainnet. Testnet3 keeps a
+ * local ethers dry-run path (no funds at risk) so the loop can be
+ * exercised without a KeeperHub key during development.
  */
 
 import { ethers } from 'ethers'
@@ -21,6 +27,29 @@ import {
   WBTC_GOAT_MAINNET, USDC_GOAT_MAINNET,
 } from './config'
 import type { RiskProfile } from '../agentLoop'
+import { getKeeperHubClient, hasKeeperHub } from '../keeperhub/client'
+
+// SwapRouter02.exactInputSingle ABI — passed to KeeperHub's contract-call
+// endpoint so it can encode, gas-estimate, and (on mainnet) sign & send.
+const SWAP_ROUTER02_ABI_JSON = JSON.stringify([{
+  type: 'function',
+  name: 'exactInputSingle',
+  stateMutability: 'payable',
+  inputs: [{
+    name: 'params',
+    type: 'tuple',
+    components: [
+      { name: 'tokenIn',           type: 'address' },
+      { name: 'tokenOut',          type: 'address' },
+      { name: 'fee',               type: 'uint24'  },
+      { name: 'recipient',         type: 'address' },
+      { name: 'amountIn',          type: 'uint256' },
+      { name: 'amountOutMinimum',  type: 'uint256' },
+      { name: 'sqrtPriceLimitX96', type: 'uint160' },
+    ],
+  }],
+  outputs: [{ name: 'amountOut', type: 'uint256' }],
+}])
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ABIs
@@ -124,18 +153,36 @@ export function checkGoatGuardrails(params: {
 
 export class GoatClient {
   private provider: ethers.JsonRpcProvider
-  private wallet:   ethers.Wallet
+  private wallet:   ethers.Wallet | null
   public  address:  string
   public  network:  GoatNetwork
 
+  /**
+   * `privateKey` is only used now for the testnet3 local dry-run fallback
+   * and for deriving `address` client-side. Pass an empty string / omit
+   * it and set `address` via `fromAddress()` once KeeperHub owns signing
+   * end-to-end — the org wallet lives in KeeperHub, not in this process.
+   */
   constructor(privateKey: string, network: GoatNetwork = 'testnet3') {
     this.network  = network
     this.provider = new ethers.JsonRpcProvider(GOAT_RPC[network])
-    this.wallet   = new ethers.Wallet(privateKey, this.provider)
-    this.address  = this.wallet.address
+    if (privateKey) {
+      this.wallet  = new ethers.Wallet(privateKey, this.provider)
+      this.address = this.wallet.address
+    } else {
+      this.wallet  = null
+      this.address = ''
+    }
   }
 
-  getWallet(): ethers.Wallet { return this.wallet }
+  /** Build a read-only client bound to a known address — no key needed. */
+  static fromAddress(address: string, network: GoatNetwork = 'testnet3'): GoatClient {
+    const c = new GoatClient('', network)
+    c.address = address
+    return c
+  }
+
+  getWallet(): ethers.Wallet | null { return this.wallet }
   getChainId(): number       { return GOAT_CHAIN_ID[this.network] }
   explorerTx(hash: string)   { return `${GOAT_EXPLORER[this.network]}/tx/${hash}` }
 
@@ -190,7 +237,29 @@ export class GoatClient {
 
   // ── BTC transfer ─────────────────────────────────────────────────────────────
 
-  async sendBTC(to: string, amount: number): Promise<{ txHash: string; success: boolean; error?: string }> {
+  /**
+   * Send native BTC. On mainnet this always goes through KeeperHub's
+   * Direct Execution API (simulate → broadcast → verified receipt) —
+   * see lib/keeperhub/client.ts. On testnet3, falls back to a local
+   * ethers signature if a private key was provided (dev convenience;
+   * no real value is at risk on testnet3).
+   */
+  async sendBTC(to: string, amount: number, taskId = `sendbtc-${Date.now()}`): Promise<{ txHash: string; success: boolean; error?: string }> {
+    if (this.network === 'mainnet') {
+      if (!hasKeeperHub()) {
+        return { txHash: '', success: false, error: 'KEEPERHUB_API_KEY not configured — mainnet transfers must go through KeeperHub' }
+      }
+      const kh = getKeeperHubClient()
+      const out = await kh.safeTransfer(
+        { chainId: GOAT_CHAIN_ID.mainnet, recipientAddress: to, amount: amount.toString() },
+        taskId
+      )
+      if (!out.success) return { txHash: '', success: false, error: out.error ?? 'KeeperHub transfer failed' }
+      return { txHash: out.status?.transactionHash ?? '', success: true }
+    }
+
+    // testnet3 dev fallback — only if a local wallet is present
+    if (!this.wallet) return { txHash: '', success: false, error: 'No signer available for testnet3 dry-run send' }
     try {
       const tx  = await this.wallet.sendTransaction({ to, value: ethers.parseEther(amount.toString()) })
       const rec = await tx.wait()
@@ -231,11 +300,17 @@ export class GoatClient {
   // ── Uniswap V3 — swap ────────────────────────────────────────────────────────
 
   /**
-   * Execute an exactInputSingle swap on Uniswap V3 (mainnet only).
-   * On testnet3, simulates the trade and returns a fake txHash so the
-   * agent loop can be tested end-to-end without real funds.
+   * Execute an exactInputSingle swap on Uniswap V3 (mainnet only), signed
+   * and broadcast entirely through KeeperHub — approval (if needed) and
+   * the swap itself both go through KeeperHub's simulate → broadcast →
+   * verified-receipt sequence, gas-estimated and MEV-protected on
+   * KeeperHub's side, and recorded in KeeperHub's audit trail.
+   *
+   * On testnet3, simulates the trade locally and returns a fake txHash so
+   * the agent loop can be exercised end-to-end without funds or a
+   * KeeperHub key.
    */
-  async swap(params: GoatSwapParams): Promise<GoatSwapResult> {
+  async swap(params: GoatSwapParams, taskId = `swap-${Date.now()}`): Promise<GoatSwapResult> {
     if (this.network !== 'mainnet') {
       return {
         success: true,
@@ -245,39 +320,66 @@ export class GoatClient {
       }
     }
 
-    try {
-      const router   = new ethers.Contract(UNISWAP_V3_CONTRACTS.swapRouter02, SWAP_ROUTER_ABI, this.wallet)
-      const amountIn = ethers.parseUnits(params.amountIn.toString(), params.decimalsIn)
+    if (!hasKeeperHub()) {
+      return { success: false, txHash: '', amountOut: 0, simulated: false, error: 'KEEPERHUB_API_KEY not configured — mainnet swaps must go through KeeperHub' }
+    }
+    if (!this.address) {
+      return { success: false, txHash: '', amountOut: 0, simulated: false, error: 'No recipient address set (call GoatClient.fromAddress or supply a wallet)' }
+    }
 
-      // Approve router if tokenIn is ERC-20 (not native BTC)
+    const kh        = getKeeperHubClient()
+    const chainId   = GOAT_CHAIN_ID.mainnet
+    const amountIn  = ethers.parseUnits(params.amountIn.toString(), params.decimalsIn)
+
+    try {
+      // Approve router if tokenIn is ERC-20 (not native BTC) — read
+      // allowance directly from the chain (no signer needed), then let
+      // KeeperHub sign + broadcast the approval if it's insufficient.
       if (params.tokenIn !== 'BTC') {
-        const token = new ethers.Contract(params.tokenIn, ERC20_ABI, this.wallet)
+        const token = new ethers.Contract(params.tokenIn, ERC20_ABI, this.provider)
         const allowance: bigint = await token.allowance(this.address, UNISWAP_V3_CONTRACTS.swapRouter02)
         if (allowance < amountIn) {
-          const approveTx = await token.approve(UNISWAP_V3_CONTRACTS.swapRouter02, amountIn * BigInt(2), { gasLimit: 100_000 })
-          await approveTx.wait()
+          const approveArgs = JSON.stringify([UNISWAP_V3_CONTRACTS.swapRouter02, (amountIn * BigInt(2)).toString()])
+          const approveOut  = await kh.safeContractCall({
+            contractAddress: params.tokenIn,
+            chainId,
+            functionName:    'approve',
+            functionArgs:    approveArgs,
+            abi:             JSON.stringify([{ type: 'function', name: 'approve', stateMutability: 'nonpayable', inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], outputs: [{ name: '', type: 'bool' }] }]),
+          }, `${taskId}-approve`)
+          if (!approveOut.success) {
+            return { success: false, txHash: '', amountOut: 0, simulated: false, error: `Approval failed: ${approveOut.error}` }
+          }
         }
       }
 
-      // Calculate minimum output with slippage
-      const quote       = await this.getSwapQuote(params)
+      // Calculate minimum output with slippage (read-only quote)
+      const quote        = await this.getSwapQuote(params)
       const minAmountOut = quote.amountOut * (1 - params.slippagePct / 100)
 
-      const tx = await router.exactInputSingle(
-        {
-          tokenIn:           params.tokenIn,
-          tokenOut:          params.tokenOut,
-          fee:               params.feeTier,
-          recipient:         this.address,
-          amountIn,
-          amountOutMinimum:  ethers.parseUnits(minAmountOut.toFixed(6), 18),
-          sqrtPriceLimitX96: 0,
-        },
-        { gasLimit: GOAT_AGENT_DEFAULTS.GAS_LIMIT_SWAP }
-      )
-      const rec = await tx.wait()
+      const swapArgs = JSON.stringify([{
+        tokenIn:           params.tokenIn,
+        tokenOut:          params.tokenOut,
+        fee:               params.feeTier,
+        recipient:         this.address,
+        amountIn:          amountIn.toString(),
+        amountOutMinimum:  ethers.parseUnits(minAmountOut.toFixed(6), 18).toString(),
+        sqrtPriceLimitX96: '0',
+      }])
 
-      return { success: true, txHash: rec.hash, amountOut: quote.amountOut, simulated: false }
+      const out = await kh.safeContractCall({
+        contractAddress:    UNISWAP_V3_CONTRACTS.swapRouter02,
+        chainId,
+        functionName:       'exactInputSingle',
+        functionArgs:       swapArgs,
+        abi:                SWAP_ROUTER02_ABI_JSON,
+        gasLimitMultiplier: '1.2',
+      }, taskId)
+
+      if (!out.success) {
+        return { success: false, txHash: '', amountOut: 0, simulated: false, error: out.error ?? 'KeeperHub swap execution failed' }
+      }
+      return { success: true, txHash: out.status?.transactionHash ?? '', amountOut: quote.amountOut, simulated: false }
     } catch (err: any) {
       console.error('[GoatClient.swap]', err.message)
       return { success: false, txHash: '', amountOut: 0, error: err.message, simulated: false }
@@ -287,6 +389,7 @@ export class GoatClient {
   // ── Wallet helpers ────────────────────────────────────────────────────────────
 
   async signMessage(msg: string): Promise<string> {
+    if (!this.wallet) throw new Error('No local signer on this client (KeeperHub-backed clients cannot sign messages locally)')
     return this.wallet.signMessage(msg)
   }
 }

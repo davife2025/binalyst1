@@ -1,9 +1,12 @@
 /**
- * app/api/goat/loop/route.ts — Session 2
+ * app/api/goat/loop/route.ts — Session 2, re-platformed on KeeperHub
  *
  * Server-side GOAT Network agent loop.
  * Called every 2 minutes by useGoatAgentLoop (client hook).
- * Decision logic: signal engine → strategy rules → risk guardrails → GoatClient.swap()
+ * Decision logic: signal engine → strategy rules → risk guardrails →
+ * GoatClient.swap() — which, for mainnet, signs and broadcasts through
+ * KeeperHub's Direct Execution API rather than a private key held here.
+ * See lib/keeperhub/client.ts and https://docs.keeperhub.com/api/direct-execution.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -25,7 +28,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json() as {
-      privateKey:   string
+      privateKey?:  string   // legacy/testnet-only local-signing fallback
+      agentAddress?: string  // KeeperHub mode: address only, no key transmitted
       network:      GoatNetwork
       riskProfile:  RiskProfile
       marketType:   string
@@ -39,11 +43,16 @@ export async function POST(req: NextRequest) {
     }
 
     const {
-      privateKey, network, riskProfile, todayTrades,
+      privateKey, agentAddress, network, riskProfile, todayTrades,
       portfolioUSD, drawdownPct, dryRun = true, signals = [],
     } = body
 
-    if (!privateKey) return NextResponse.json({ error: 'privateKey required' }, { status: 400 })
+    // KeeperHub mode (mainnet, real trades) only needs the address — it
+    // never sees a private key, since KeeperHub's own wallet signs.
+    // The legacy `privateKey` field still works for local testnet3 dry runs.
+    if (!privateKey && !agentAddress) {
+      return NextResponse.json({ error: 'agentAddress (or, for testnet3 dev, privateKey) required' }, { status: 400 })
+    }
 
     // Trade persistence is per-user but the agent should still run for
     // guests / unauthenticated sessions — just skip the Supabase write
@@ -57,7 +66,9 @@ export async function POST(req: NextRequest) {
       // no session — proceed without persistence
     }
 
-    const client = new GoatClient(privateKey, network)
+    const client = privateKey
+      ? new GoatClient(privateKey, network)
+      : GoatClient.fromAddress(agentAddress!, network)
 
     // ── 1. Portfolio snapshot ──────────────────────────────────────────────
     const btcBalance = await client.getBTCBalance()
@@ -114,6 +125,11 @@ export async function POST(req: NextRequest) {
       // GOAT-mainnet ERC-20 addresses (WBTC, USDC etc).
       // Until WBTC_GOAT_MAINNET / USDC_GOAT_MAINNET are confirmed from
       // explorer.goat.network/tokens, we run in testnet3 simulation mode.
+      // Stable, time-bucketed task id: same signal + same 2-minute cycle
+      // replays safely if this request is retried; a new cycle is new work.
+      const cycleBucket = new Date(Math.floor(Date.now() / 120_000) * 120_000).toISOString()
+      const taskId = `goat-loop-${signal.symbol}-${signal.action}-${cycleBucket}`
+
       const result = await client.swap({
         tokenIn:    'BTC',   // native — placeholder until ERC-20 addresses confirmed
         tokenOut:   'BTC',   // placeholder
@@ -121,7 +137,7 @@ export async function POST(req: NextRequest) {
         decimalsIn: 18,
         feeTier:    3000,
         slippagePct: riskProfile.slippagePct,
-      })
+      }, taskId)
 
       if (result.success) {
         trades.push({ ...base, txHash: result.txHash, status: result.simulated ? 'simulated' : 'confirmed', pnlUSD: 0 })

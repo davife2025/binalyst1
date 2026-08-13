@@ -711,7 +711,7 @@ export default function OnboardingTab() {
           </div>
           <div className="flex gap-2 justify-between">
             <Btn variant="ghost" onClick={() => setStep(6)}>← Back</Btn>
-            <Btn onClick={() => { setStep(8); goLive() }}>Go Live 🚀</Btn>
+            <Btn onClick={() => { setStep(8); goLive() }}>Go Live </Btn>
           </div>
         </Card>
       )}

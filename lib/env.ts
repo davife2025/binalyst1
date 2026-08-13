@@ -26,7 +26,9 @@ const REQUIRED: string[] = [
 const OPTIONAL: Record<string, string> = {
   'SUPABASE_SERVICE_ROLE_KEY': 'Required for trade persistence (Session 8)',
   'TWELVE_DATA_API_KEY':       'Required for forex/stocks signals and live prices (Sessions 4, 9)',
-  'GOAT_AGENT_PRIVATE_KEY':   'Required for GOAT Network agent execution (Session 2)',
+  'KEEPERHUB_API_KEY':        'Required for mainnet execution — KeeperHub signs/broadcasts all live trades (see lib/keeperhub)',
+  'KEEPERHUB_API_BASE_URL':   'Override KeeperHub API base URL (defaults to https://app.keeperhub.com)',
+  'GOAT_AGENT_PRIVATE_KEY':   'Testnet3-only local dry-run fallback — never used for mainnet trades',
   'GOAT_X402_API_KEY':        'Required for x402 autonomous payments (Session 7)',
   'GOAT_X402_BASE_URL':       'Required for x402 autonomous payments (Session 7)',
   'NEXTAUTH_SECRET':           'Required for session auth',
@@ -89,3 +91,4 @@ export const hasSupabaseServiceRole = () => !!process.env.SUPABASE_SERVICE_ROLE_
 export const hasTwelveData          = () => !!process.env.TWELVE_DATA_API_KEY
 export const hasGoatKey             = () => !!process.env.GOAT_AGENT_PRIVATE_KEY
 export const hasX402                = () => !!process.env.GOAT_X402_API_KEY && !!process.env.GOAT_X402_BASE_URL
+export const hasKeeperHubKey        = () => !!process.env.KEEPERHUB_API_KEY

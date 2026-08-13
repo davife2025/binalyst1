@@ -40,12 +40,12 @@ export async function POST(req: NextRequest) {
       drawdownPct:  number
       dryRun:       boolean
       signals:      Array<{ symbol: string; score: number; action: 'buy' | 'sell' | 'hold'; reasons: string[] }>
-      rules:        Array<{ condition: string; action: string; amount: number }>
+      rules:        Array<{ symbol: string; action: 'buy' | 'sell'; sizePct: number }>
     }
 
     const {
       privateKey, agentAddress, network, riskProfile, todayTrades,
-      portfolioUSD: clientPortfolioUSD, drawdownPct, dryRun = true, signals = [],
+      portfolioUSD: clientPortfolioUSD, drawdownPct, dryRun = true, signals = [], rules = [],
     } = body
 
     // KeeperHub mode (mainnet, real trades) only needs the address — it
@@ -92,13 +92,26 @@ export async function POST(req: NextRequest) {
       s.action !== 'hold' && Math.abs(s.score) >= MIN_SIGNAL_SCORE
     )
 
+    // Rules (e.g. "always buy BTC 5%") bypass the score gate above entirely —
+    // they fire every cycle regardless of signal strength, but still go
+    // through the same guardrails and execution path as signal-based trades
+    // below. A rule's own sizePct overrides the risk profile's position
+    // sizing for that trade.
+    type TradeIntent = { symbol: string; action: 'buy' | 'sell'; sizePct?: number }
+    const intents: TradeIntent[] = [
+      ...actionable.map((s): TradeIntent => ({ symbol: s.symbol, action: s.action as 'buy' | 'sell' })),
+      ...rules.map((r): TradeIntent => ({ symbol: r.symbol, action: r.action, sizePct: r.sizePct })),
+    ]
+
     const trades: GoatTrade[]  = []
     const errors:  string[]    = []
     let   executed = 0
     let   blocked  = 0
 
-    for (const signal of actionable) {
-      const amountUSD = portfolioUSD * (riskProfile.maxPositionPct / 100)
+    for (const intent of intents) {
+      const amountUSD = intent.sizePct != null
+        ? portfolioUSD * (intent.sizePct / 100)
+        : portfolioUSD * (riskProfile.maxPositionPct / 100)
 
       // ── Guardrails ───────────────────────────────────────────────────────
       const guard = checkGoatGuardrails({
@@ -114,8 +127,8 @@ export async function POST(req: NextRequest) {
       const base: Omit<GoatTrade, 'txHash' | 'status' | 'pnlUSD' | 'reason'> = {
         id:         crypto.randomUUID(),
         timestamp:  Date.now(),
-        symbol:     signal.symbol,
-        side:       signal.action as 'buy' | 'sell',
+        symbol:     intent.symbol,
+        side:       intent.action,
         amountUSD,
         marketType: 'crypto',
       }
@@ -136,7 +149,7 @@ export async function POST(req: NextRequest) {
       // Stable, time-bucketed task id: same signal + same 2-minute cycle
       // replays safely if this request is retried; a new cycle is new work.
       const cycleBucket = new Date(Math.floor(Date.now() / 120_000) * 120_000).toISOString()
-      const taskId = `goat-loop-${signal.symbol}-${signal.action}-${cycleBucket}`
+      const taskId = `goat-loop-${intent.symbol}-${intent.action}-${cycleBucket}`
 
       let result: { success: boolean; txHash: string; error?: string; simulated?: boolean }
 
@@ -172,7 +185,7 @@ export async function POST(req: NextRequest) {
         executed++
       } else {
         trades.push({ ...base, txHash: '', status: 'failed', pnlUSD: 0, reason: result.error })
-        errors.push(`${signal.symbol}: ${result.error}`)
+        errors.push(`${intent.symbol}: ${result.error}`)
       }
     }
 

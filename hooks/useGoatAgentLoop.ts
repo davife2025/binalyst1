@@ -18,6 +18,7 @@ export function useGoatAgentLoop() {
   const {
     privateKey, agentAddress, isWalletLoaded, network, riskProfile,
     marketType, selectedAsset, dryRun,
+    alwaysBuyEnabled, alwaysBuySymbol, alwaysBuyPct,
     session, initSession, updateSession,
     portfolioUSD, btcBalance, setBtcBalance, setPortfolioUSD,
     addTrade, trades,
@@ -80,7 +81,9 @@ export function useGoatAgentLoop() {
           drawdownPct,
           dryRun,       // from useGoatStore — set by the LiveAgentTab toggle
           signals,
-          rules:        [],
+          rules: alwaysBuyEnabled
+            ? [{ symbol: alwaysBuySymbol, action: 'buy' as const, sizePct: alwaysBuyPct }]
+            : [],
         }),
       })
 
@@ -118,6 +121,7 @@ export function useGoatAgentLoop() {
 
     setIsRunning(false)
   }, [privateKey, isWalletLoaded, network, riskProfile, marketType, selectedAsset, dryRun,
+      alwaysBuyEnabled, alwaysBuySymbol, alwaysBuyPct,
       session, portfolioUSD, btcBalance, drawdownPct, isRunning,
       todayTrades, setBtcBalance, setPortfolioUSD, updateSession, addTrade])
 

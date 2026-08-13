@@ -105,6 +105,16 @@ interface GoatStore {
   dryRun:    boolean
   setDryRun: (v: boolean) => void
 
+  // ── Always-buy rule ───────────────────────────────────────────────────────
+  // A fixed-size buy that fires every cycle regardless of signal score —
+  // e.g. "always buy BTC 5% of portfolio" — independent of the actionable
+  // signal filter (MIN_SIGNAL_SCORE) in app/api/goat/loop/route.ts. Still
+  // subject to the same guardrails (gas reserve, drawdown, daily limit).
+  alwaysBuyEnabled: boolean
+  alwaysBuySymbol:  string
+  alwaysBuyPct:     number
+  setAlwaysBuyRule: (r: { enabled: boolean; symbol: string; pct: number }) => void
+
   // ── Session ────────────────────────────────────────────────────────────────
   session:       GoatSession | null
   initSession:   (startUSD: number) => void
@@ -162,6 +172,12 @@ export const useGoatStore = create<GoatStore>()(
       dryRun:    true,   // safe by default — user must explicitly flip to live
       setDryRun: (v) => set({ dryRun: v }),
 
+      // ── Always-buy rule ──────────────────────────────────────────────────
+      alwaysBuyEnabled: false,
+      alwaysBuySymbol:  'BTC',
+      alwaysBuyPct:     5,
+      setAlwaysBuyRule: (r) => set({ alwaysBuyEnabled: r.enabled, alwaysBuySymbol: r.symbol, alwaysBuyPct: r.pct }),
+
       // ── Session ───────────────────────────────────────────────────────────
       session: null,
 
@@ -216,6 +232,9 @@ export const useGoatStore = create<GoatStore>()(
         selectedAsset:  s.selectedAsset,
         riskProfile:    s.riskProfile,
         dryRun:         s.dryRun,
+        alwaysBuyEnabled: s.alwaysBuyEnabled,
+        alwaysBuySymbol:  s.alwaysBuySymbol,
+        alwaysBuyPct:     s.alwaysBuyPct,
         session:        s.session,
         trades:         s.trades.slice(0, 100),
         agentId:        s.agentId,

@@ -77,6 +77,7 @@ export default function LiveAgentTab() {
     network, btcBalance, portfolioUSD, session,
     setWallet, setEncryptedKey, clearWallet, setNetwork,
     riskProfile, trades, dryRun, setDryRun,
+    alwaysBuyEnabled, alwaysBuySymbol, alwaysBuyPct, setAlwaysBuyRule,
   } = useGoatStore()
 
   const {
@@ -176,8 +177,12 @@ export default function LiveAgentTab() {
 
   // Preview of what the *next* trade would look like if a signal fires
   // right now — same sizing math as app/api/goat/loop/route.ts, so this
-  // stays honest about what the agent would actually attempt.
-  const nextTradeAmountUSD = portfolioUSD * (riskProfile.maxPositionPct / 100)
+  // stays honest about what the agent would actually attempt. When the
+  // always-buy rule is on, that's the trade guaranteed to fire this cycle,
+  // so preview its size (not the risk-profile default) instead.
+  const nextTradeAmountUSD = alwaysBuyEnabled
+    ? portfolioUSD * (alwaysBuyPct / 100)
+    : portfolioUSD * (riskProfile.maxPositionPct / 100)
   const nextTradeGuard = checkGoatGuardrails({
     profile:      riskProfile,
     btcBalance,
@@ -410,6 +415,30 @@ export default function LiveAgentTab() {
               <RuleRow label="Min BTC gas reserve" value={`${btcBalance.toFixed(6)} / ${GOAT_AGENT_DEFAULTS.MIN_BTC_GAS_RESERVE} BTC`} ok={btcBalance >= GOAT_AGENT_DEFAULTS.MIN_BTC_GAS_RESERVE} />
               <RuleRow label="Slippage tolerance" value={`${riskProfile.slippagePct}%`} />
               <RuleRow label="Stop loss" value={`${riskProfile.stopLossPct}%`} />
+            </div>
+
+            {/* Always-buy rule — fires every cycle regardless of signal score,
+                still subject to the guardrails above (gas reserve, drawdown,
+                daily limit). Independent of the signal-score gate. */}
+            <div className="pt-2 mt-2" style={{ borderTop: '1px solid var(--border)' }}>
+              <label className="flex items-center gap-2 font-mono text-[10px] mb-2" style={{ color: 'var(--text2)' }}>
+                <input type="checkbox" checked={alwaysBuyEnabled}
+                  onChange={e => setAlwaysBuyRule({ enabled: e.target.checked, symbol: alwaysBuySymbol, pct: alwaysBuyPct })} />
+                Always buy — every cycle, regardless of signal score
+              </label>
+              {alwaysBuyEnabled && (
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="text" placeholder="Symbol" value={alwaysBuySymbol}
+                    onChange={e => setAlwaysBuyRule({ enabled: alwaysBuyEnabled, symbol: e.target.value.toUpperCase(), pct: alwaysBuyPct })}
+                    className="font-mono text-xs px-3 py-2 rounded-lg" style={{ background: 'var(--bg3)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+                  <div className="flex items-center gap-2">
+                    <input type="number" min={0.1} max={100} step={0.1} value={alwaysBuyPct}
+                      onChange={e => setAlwaysBuyRule({ enabled: alwaysBuyEnabled, symbol: alwaysBuySymbol, pct: parseFloat(e.target.value) || 0 })}
+                      className="font-mono text-xs px-3 py-2 rounded-lg w-full" style={{ background: 'var(--bg3)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+                    <span className="font-mono text-xs" style={{ color: 'var(--text3)' }}>% of portfolio</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

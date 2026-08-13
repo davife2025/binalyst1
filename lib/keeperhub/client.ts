@@ -173,7 +173,7 @@ export class KeeperHubClient {
     idempotencyKey: string
   ): Promise<KeeperHubExecutionResult> {
     const { data } = await this.request<KeeperHubExecutionResult>(
-      '/api/execute/transfer', params, { idempotencyKey }
+      '/api/execute/transfer', { ...params }, { idempotencyKey }
     )
     return data
   }
@@ -192,7 +192,7 @@ export class KeeperHubClient {
     idempotencyKey: string
   ): Promise<KeeperHubExecutionResult> {
     const { data } = await this.request<KeeperHubExecutionResult>(
-      '/api/execute/contract-call', params, { idempotencyKey }
+      '/api/execute/contract-call', { ...params }, { idempotencyKey }
     )
     return data
   }

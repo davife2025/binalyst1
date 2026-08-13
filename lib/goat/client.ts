@@ -13,10 +13,16 @@
  *  routing, audit-logged) → chain-verified receipt → trade record
  *
  * All reads (balances, quotes) stay on direct RPC — no wallet needed.
- * All writes (transfers, swaps, approvals) go through KeeperHub's Direct
- * Execution API (lib/keeperhub/client.ts) on mainnet. Testnet3 keeps a
- * local ethers dry-run path (no funds at risk) so the loop can be
- * exercised without a KeeperHub key during development.
+ * Native BTC transfers go through KeeperHub's Direct Execution API
+ * (lib/keeperhub/client.ts) on *both* mainnet and testnet3 whenever
+ * KEEPERHUB_API_KEY is configured — testnet3 is the intended place to
+ * exercise real KeeperHub execution (simulate → broadcast → chain-verified
+ * receipt) without mainnet funds at risk. Uniswap V3 swaps only go through
+ * KeeperHub on mainnet, since Uniswap V3 is not deployed on GOAT testnet3
+ * (see UNISWAP_V3_CONTRACTS note in ./config) — swaps simulate locally on
+ * testnet3 regardless of KeeperHub configuration. When no KeeperHub key is
+ * configured at all, both networks fall back to a local ethers dry-run
+ * path (mainnet transfers are refused outright rather than locally signed).
  */
 
 import { ethers } from 'ethers'
@@ -238,34 +244,43 @@ export class GoatClient {
   // ── BTC transfer ─────────────────────────────────────────────────────────────
 
   /**
-   * Send native BTC. On mainnet this always goes through KeeperHub's
-   * Direct Execution API (simulate → broadcast → verified receipt) —
-   * see lib/keeperhub/client.ts. On testnet3, falls back to a local
-   * ethers signature if a private key was provided (dev convenience;
-   * no real value is at risk on testnet3).
+   * Send native BTC. Whenever KEEPERHUB_API_KEY is configured, this goes
+   * through KeeperHub's Direct Execution API on *either* network — simulate
+   * → broadcast → verified receipt, gas-estimated, MEV-protected, and
+   * audit-logged — see lib/keeperhub/client.ts. This is what lets testnet3
+   * be used to genuinely exercise KeeperHub (real testnet transaction,
+   * real receipt) instead of only a local fake.
+   *
+   * Falls back to a local ethers signature only when no KeeperHub key is
+   * configured (dev convenience) — on mainnet this fallback is refused
+   * outright, since a locally-signed mainnet send would bypass KeeperHub's
+   * gas/MEV/audit guarantees entirely; on testnet3 it's allowed since no
+   * real value is at risk.
    */
-  async sendBTC(to: string, amount: number, taskId = `sendbtc-${Date.now()}`): Promise<{ txHash: string; success: boolean; error?: string }> {
-    if (this.network === 'mainnet') {
-      if (!hasKeeperHub()) {
-        return { txHash: '', success: false, error: 'KEEPERHUB_API_KEY not configured — mainnet transfers must go through KeeperHub' }
-      }
+  async sendBTC(to: string, amount: number, taskId = `sendbtc-${Date.now()}`): Promise<{ txHash: string; success: boolean; error?: string; keeperhub: boolean }> {
+    if (hasKeeperHub()) {
       const kh = getKeeperHubClient()
       const out = await kh.safeTransfer(
-        { chainId: GOAT_CHAIN_ID.mainnet, recipientAddress: to, amount: amount.toString() },
+        { chainId: GOAT_CHAIN_ID[this.network], recipientAddress: to, amount: amount.toString() },
         taskId
       )
-      if (!out.success) return { txHash: '', success: false, error: out.error ?? 'KeeperHub transfer failed' }
-      return { txHash: out.status?.transactionHash ?? '', success: true }
+      if (!out.success) return { txHash: '', success: false, error: out.error ?? 'KeeperHub transfer failed', keeperhub: true }
+      return { txHash: out.status?.transactionHash ?? '', success: true, keeperhub: true }
     }
 
-    // testnet3 dev fallback — only if a local wallet is present
-    if (!this.wallet) return { txHash: '', success: false, error: 'No signer available for testnet3 dry-run send' }
+    if (this.network === 'mainnet') {
+      return { txHash: '', success: false, error: 'KEEPERHUB_API_KEY not configured — mainnet transfers must go through KeeperHub', keeperhub: false }
+    }
+
+    // testnet3 dev fallback — only if a local wallet is present and no
+    // KeeperHub key is configured. No real value at risk on testnet3.
+    if (!this.wallet) return { txHash: '', success: false, error: 'No signer available for testnet3 dry-run send', keeperhub: false }
     try {
       const tx  = await this.wallet.sendTransaction({ to, value: ethers.parseEther(amount.toString()) })
       const rec = await tx.wait()
-      return { txHash: rec?.hash ?? tx.hash, success: true }
+      return { txHash: rec?.hash ?? tx.hash, success: true, keeperhub: false }
     } catch (err: any) {
-      return { txHash: '', success: false, error: err.message }
+      return { txHash: '', success: false, error: err.message, keeperhub: false }
     }
   }
 

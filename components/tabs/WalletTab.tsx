@@ -100,7 +100,7 @@ export default function WalletTab() {
       const client = new GoatClient(privateKey, network)
       const result = await client.sendBTC(sendTo.trim(), amount)
       if (!result.success) throw new Error(result.error ?? 'Send failed')
-      setSuccess(`Sent ${amount} BTC · tx: ${result.txHash}`)
+      setSuccess(`Sent ${amount} BTC via ${result.keeperhub ? 'KeeperHub' : 'local signer'} · tx: ${result.txHash}`)
       setSendTo(''); setSendAmount(''); setConfirm(false)
       await refreshBalance()
     } catch (e: any) {

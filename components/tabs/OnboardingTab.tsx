@@ -17,7 +17,7 @@
  *   ✓  Go live       — confirm and navigate to live-agent tab
  */
 
-import { useState, useCallback }  from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useGoatStore }            from '@/lib/goat/store'
 import { useAgentStore }           from '@/lib/agentStore'
 import { RISK_PRESETS }            from '@/lib/agentLoop'
@@ -231,6 +231,17 @@ export default function OnboardingTab() {
   // ── Error ─────────────────────────────────────────────────────────────────
   const [error, setError] = useState('')
 
+  // Whether KEEPERHUB_API_KEY is configured server-side — drives the
+  // per-network execution badges in Step 1 below (same check as Live Agent).
+  const [keeperhubEnabled, setKeeperhubEnabled] = useState<boolean | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/health').then(r => r.json()).then(d => {
+      if (!cancelled) setKeeperhubEnabled(!!d?.features?.keeperhub_execution)
+    }).catch(() => { if (!cancelled) setKeeperhubEnabled(false) })
+    return () => { cancelled = true }
+  }, [])
+
   function copy(text: string, key: string) {
     navigator.clipboard.writeText(text)
     setCopied(key)
@@ -365,6 +376,18 @@ export default function OnboardingTab() {
             </Card>
           ))}
         </div>
+        {network !== 'bsc-mainnet' && (
+          <div className="font-mono text-[10px] px-3 py-2 rounded-lg"
+            style={{
+              background: keeperhubEnabled ? 'rgba(14,203,129,.06)' : 'rgba(240,185,11,.06)',
+              border: `1px solid ${keeperhubEnabled ? 'rgba(14,203,129,.2)' : 'rgba(240,185,11,.2)'}`,
+              color: keeperhubEnabled ? 'var(--green)' : 'var(--yellow)',
+            }}>
+            {keeperhubEnabled
+              ? '● KeeperHub is configured — this agent will execute through KeeperHub.'
+              : '○ KeeperHub is not configured — trades will simulate until KEEPERHUB_API_KEY is set.'}
+          </div>
+        )}
         <Btn onClick={() => setComplete(false)} variant="ghost">← Back to onboarding</Btn>
       </div>
     )
@@ -394,9 +417,22 @@ export default function OnboardingTab() {
           <Label>Choose your network</Label>
           <div className="grid grid-cols-1 gap-2">
             {([
-              { id: 'goat-testnet3', label: 'GOAT Testnet3', sub: 'chain ID 48816 · free test BTC · recommended for first run', icon: '🧪' },
-              { id: 'goat-mainnet',  label: 'GOAT Mainnet',  sub: 'chain ID 2345 · real BTC gas · Uniswap V3 deployed',         icon: '🟡' },
-              { id: 'bsc-mainnet',   label: 'BSC Mainnet',   sub: 'chain ID 56 · BNB gas · PancakeSwap V2',                      icon: '🔶' },
+              {
+                id: 'goat-testnet3', label: 'GOAT Testnet3', sub: 'chain ID 48816 · free test BTC · recommended for first run', icon: '🧪',
+                keeperhub: keeperhubEnabled === null ? 'Checking KeeperHub…'
+                  : keeperhubEnabled ? '● KeeperHub: live testnet execution (BTC transfers real, swaps simulated — no testnet DEX)'
+                  : '○ KeeperHub: not configured — all trades simulate locally',
+              },
+              {
+                id: 'goat-mainnet', label: 'GOAT Mainnet', sub: 'chain ID 2345 · real BTC gas · Uniswap V3 deployed', icon: '🟡',
+                keeperhub: keeperhubEnabled === null ? 'Checking KeeperHub…'
+                  : keeperhubEnabled ? '● KeeperHub: live execution (signs, gas-estimates, broadcasts real trades)'
+                  : '⚠ KeeperHub not configured — mainnet trades will be blocked until KEEPERHUB_API_KEY is set',
+              },
+              {
+                id: 'bsc-mainnet', label: 'BSC Mainnet', sub: 'chain ID 56 · BNB gas · PancakeSwap V2', icon: '🔶',
+                keeperhub: '○ Not on KeeperHub — signs locally with the agent wallet',
+              },
             ] as const).map(n => (
               <button key={n.id} onClick={() => setNetwork(n.id)}
                 className="flex items-start gap-3 rounded-lg p-4 text-left transition-all"
@@ -407,7 +443,10 @@ export default function OnboardingTab() {
                 <span className="text-xl shrink-0 mt-0.5">{n.icon}</span>
                 <div>
                   <div className="font-bold text-sm mb-0.5" style={{ color: network === n.id ? 'var(--yellow)' : 'var(--text)' }}>{n.label}</div>
-                  <div className="font-mono text-[10px]" style={{ color: 'var(--text3)' }}>{n.sub}</div>
+                  <div className="font-mono text-[10px] mb-1" style={{ color: 'var(--text3)' }}>{n.sub}</div>
+                  <div className="font-mono text-[10px]" style={{ color: n.keeperhub.startsWith('⚠') ? 'var(--red)' : n.keeperhub.startsWith('●') ? 'var(--green)' : 'var(--text3)' }}>
+                    {n.keeperhub}
+                  </div>
                 </div>
               </button>
             ))}

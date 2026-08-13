@@ -22,7 +22,17 @@
  *  - app/api/keeperhub/*         (status polling, audit trail)
  */
 
-import { createHash } from 'node:crypto'
+// NOTE: uses crypto-js (already a project dependency) instead of Node's
+// `node:crypto`. `node:crypto` cannot be bundled for the browser, and this
+// module gets pulled into client components transitively via lib/goat/client
+// (e.g. LiveAgentTab, WalletTab import wallet helpers / GoatClient from the
+// same file) — importing `node:crypto` there breaks the Next.js client
+// webpack build with "UnhandledSchemeError: node:crypto". crypto-js's SHA256
+// works in both the browser and Node, so this keeps the module bundle-safe
+// in either context. The actual KeeperHub calls this key protects still only
+// ever succeed server-side, since KEEPERHUB_API_KEY is never exposed to the
+// client (see getKeeperHubClient() below).
+import CryptoJS from 'crypto-js'
 import { KEEPERHUB_API_BASE, KEEPERHUB_DEFAULTS } from './config'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -117,7 +127,7 @@ export function buildIdempotencyKey(params: {
     canonicalPart(params.tokenAddress?.toLowerCase()),
   ]
   const joined = parts.join('|')
-  return createHash('sha256').update(joined, 'utf8').digest('hex')
+  return CryptoJS.SHA256(joined).toString(CryptoJS.enc.Hex)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

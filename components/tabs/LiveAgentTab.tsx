@@ -7,7 +7,7 @@
  * Uses the same CSS variables and patterns as existing tabs.
  */
 
-import { useState }         from 'react'
+import { useState, useEffect } from 'react'
 import { useGoatStore }     from '@/lib/goat/store'
 import { useGoatAgentLoop } from '@/hooks/useGoatAgentLoop'
 import {
@@ -16,7 +16,9 @@ import {
   goatWalletFromMnemonic,
   encryptGoatPrivateKey,
   decryptGoatPrivateKey,
+  checkGoatGuardrails,
 } from '@/lib/goat/client'
+import { GOAT_AGENT_DEFAULTS, GOAT_EXPLORER } from '@/lib/goat/config'
 import type { GoatNetwork } from '@/lib/goat/config'
 
 const NETWORK_LABELS: Record<GoatNetwork, string> = {
@@ -42,6 +44,31 @@ function StatCard({ label, value, sub, color = 'var(--text)' }: {
       {sub && <div className="font-mono text-[10px] mt-1" style={{ color: 'var(--text3)' }}>{sub}</div>}
     </div>
   )
+}
+
+function RuleRow({ label, value, ok }: { label: string; value: string; ok?: boolean }) {
+  return (
+    <div className="flex items-center justify-between py-1.5 text-[11px]">
+      <span className="font-mono" style={{ color: 'var(--text3)' }}>{label}</span>
+      <span className="font-mono font-bold flex items-center gap-1.5" style={{ color: ok === false ? 'var(--red)' : 'var(--text)' }}>
+        {ok !== undefined && <span style={{ color: ok ? 'var(--green)' : 'var(--red)' }}>{ok ? '✓' : '✕'}</span>}
+        {value}
+      </span>
+    </div>
+  )
+}
+
+/** Truncate a tx hash / sim id for display, e.g. 0xabcd…1234 */
+function shortHash(h: string) {
+  if (!h) return '—'
+  return h.length > 14 ? `${h.slice(0, 8)}…${h.slice(-6)}` : h
+}
+
+/** How a given trade's txHash was produced, inferred from its prefix. */
+function executionMethod(t: { txHash: string; status: string }): 'keeperhub' | 'simulated' | 'none' {
+  if (!t.txHash) return 'none'
+  if (t.txHash.startsWith('sim_') || t.txHash.startsWith('dry_') || t.status === 'simulated') return 'simulated'
+  return 'keeperhub'
 }
 
 export default function LiveAgentTab() {
@@ -72,6 +99,18 @@ export default function LiveAgentTab() {
   const [loading,     setLoading]    = useState(false)
   const [error,       setError]      = useState('')
   const [copied,      setCopied]     = useState('')
+  const [keeperhubEnabled, setKeeperhubEnabled] = useState<boolean | null>(null)
+
+  // Whether KeeperHub is actually configured server-side (KEEPERHUB_API_KEY).
+  // Drives the "Live via KeeperHub" vs "Simulated locally" badges below —
+  // fetched once since it reflects a server env var, not per-network state.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/health').then(r => r.json()).then(d => {
+      if (!cancelled) setKeeperhubEnabled(!!d?.features?.keeperhub_execution)
+    }).catch(() => { if (!cancelled) setKeeperhubEnabled(false) })
+    return () => { cancelled = true }
+  }, [])
 
   function copy(text: string, key: string) {
     navigator.clipboard.writeText(text)
@@ -136,6 +175,26 @@ export default function LiveAgentTab() {
   const pnlUSD  = session ? session.currentUSD - session.startValueUSD : 0
   const pnlPct  = session?.startValueUSD ? (pnlUSD / session.startValueUSD) * 100 : 0
 
+  // Preview of what the *next* trade would look like if a signal fires
+  // right now — same sizing math as app/api/goat/loop/route.ts, so this
+  // stays honest about what the agent would actually attempt.
+  const nextTradeAmountUSD = portfolioUSD * (riskProfile.maxPositionPct / 100)
+  const nextTradeGuard = checkGoatGuardrails({
+    profile:      riskProfile,
+    btcBalance,
+    portfolioUSD,
+    amountUSD:    nextTradeAmountUSD,
+    drawdownPct,
+    todayTrades,
+    network,
+  })
+  const swapsLiveOnNetwork = network === 'mainnet'  // Uniswap V3 not deployed on testnet3
+  const executionLabel = keeperhubEnabled === null
+    ? 'Checking…'
+    : keeperhubEnabled
+      ? (swapsLiveOnNetwork ? 'Live via KeeperHub' : 'Transfers live via KeeperHub · swaps simulated (no testnet DEX)')
+      : 'Simulated locally (KEEPERHUB_API_KEY not configured)'
+
   return (
     <div className="max-w-3xl mx-auto px-6 py-6 flex flex-col gap-5">
 
@@ -143,21 +202,38 @@ export default function LiveAgentTab() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-base font-bold" style={{ color: 'var(--text)' }}>Live Agent</h2>
-          <Mono className="mt-0.5" ><span style={{ color: 'var(--text3)' }}>GOAT Network · Uniswap V3 · BTC gas · 2-min tick</span></Mono>
+          <Mono className="mt-0.5" ><span style={{ color: 'var(--text3)' }}>GOAT Network · KeeperHub execution · Uniswap V3 · BTC gas · 2-min tick</span></Mono>
         </div>
         <div className="flex items-center gap-2">
           {(['testnet3', 'mainnet'] as GoatNetwork[]).map(n => (
             <button key={n} onClick={() => setNetwork(n)}
-              className="font-mono text-[10px] px-3 py-1.5 rounded-full"
+              className="font-mono text-[10px] px-3 py-1.5 rounded-full flex items-center gap-1.5"
               style={{
                 background:   network === n ? 'var(--yellow)' : 'var(--bg2)',
                 color:        network === n ? '#000' : 'var(--text2)',
                 border:       '1px solid var(--border)',
               }}>
+              <span className="w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ background: keeperhubEnabled ? 'var(--green)' : network === n ? '#000' : 'var(--text3)' }} />
               {NETWORK_LABELS[n]}
             </button>
           ))}
         </div>
+      </div>
+
+      {/* KeeperHub execution banner — always visible, independent of wallet step */}
+      <div className="rounded-xl px-4 py-3 flex items-center justify-between flex-wrap gap-2"
+        style={{
+          background: keeperhubEnabled ? 'rgba(14,203,129,.06)' : 'rgba(240,185,11,.06)',
+          border: `1px solid ${keeperhubEnabled ? 'rgba(14,203,129,.2)' : 'rgba(240,185,11,.2)'}`,
+        }}>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: keeperhubEnabled ? 'var(--green)' : 'var(--yellow)' }} />
+          <span className="font-mono text-[11px] font-bold" style={{ color: keeperhubEnabled ? 'var(--green)' : 'var(--yellow)' }}>
+            KeeperHub: {executionLabel}
+          </span>
+        </div>
+        <span className="font-mono text-[10px]" style={{ color: 'var(--text3)' }}>{NETWORK_LABELS[network]}</span>
       </div>
 
       {error && (
@@ -313,6 +389,31 @@ export default function LiveAgentTab() {
             <StatCard label="Risk preset" value={riskProfile.preset} sub={`${riskProfile.maxPositionPct}% pos · ${riskProfile.stopLossPct}% SL`} />
           </div>
 
+          {/* Next trade preview + rules */}
+          <div className="rounded-xl p-4" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-mono text-[9px] uppercase tracking-widest" style={{ color: 'var(--text3)' }}>
+                Next trade would size at
+              </span>
+              <span className="font-mono text-sm font-bold" style={{ color: nextTradeGuard.allowed ? 'var(--yellow)' : 'var(--red)' }}>
+                ${nextTradeAmountUSD.toFixed(2)}
+              </span>
+            </div>
+            {!nextTradeGuard.allowed && (
+              <div className="font-mono text-[10px] mb-2 px-2 py-1.5 rounded" style={{ background: 'rgba(246,70,93,.08)', color: 'var(--red)' }}>
+                Would be blocked right now: {nextTradeGuard.reason}
+              </div>
+            )}
+            <div className="pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+              <RuleRow label="Max position size" value={`${riskProfile.maxPositionPct}% of portfolio`} />
+              <RuleRow label="Max daily trades" value={`${todayTrades} / ${riskProfile.maxDailyTrades}`} ok={todayTrades < riskProfile.maxDailyTrades} />
+              <RuleRow label="Max drawdown" value={`${drawdownPct.toFixed(1)}% / ${riskProfile.maxDrawdownPct}%`} ok={drawdownPct < riskProfile.maxDrawdownPct} />
+              <RuleRow label="Min BTC gas reserve" value={`${btcBalance.toFixed(6)} / ${GOAT_AGENT_DEFAULTS.MIN_BTC_GAS_RESERVE} BTC`} ok={btcBalance >= GOAT_AGENT_DEFAULTS.MIN_BTC_GAS_RESERVE} />
+              <RuleRow label="Slippage tolerance" value={`${riskProfile.slippagePct}%`} />
+              <RuleRow label="Stop loss" value={`${riskProfile.stopLossPct}%`} />
+            </div>
+          </div>
+
           {/* Controls */}
           <div className="rounded-xl p-4 flex items-center justify-between flex-wrap gap-3"
             style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
@@ -345,35 +446,54 @@ export default function LiveAgentTab() {
             </div>
           </div>
 
-          {/* Trade log */}
+          {/* Transactions */}
           <div className="rounded-xl overflow-hidden" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
             <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-              <span className="font-mono text-xs font-bold" style={{ color: 'var(--text)' }}>Recent decisions</span>
+              <span className="font-mono text-xs font-bold" style={{ color: 'var(--text)' }}>Transactions</span>
               <span className="font-mono text-[10px]" style={{ color: 'var(--text3)' }}>GOAT Network · Uniswap V3</span>
             </div>
             {trades.length === 0
               ? <div className="px-4 py-6 font-mono text-xs text-center" style={{ color: 'var(--text3)' }}>No trades yet — start the agent to begin</div>
-              : trades.slice(0, 8).map(t => (
-                <div key={t.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs"
-                  style={{ borderBottom: '1px solid var(--border)' }}>
-                  <span className="font-mono font-bold" style={{ color: 'var(--text)' }}>{t.symbol}</span>
-                  <span className="font-mono px-2 py-0.5 rounded text-[9px] font-bold"
-                    style={{
-                      background: t.side === 'buy' ? 'rgba(14,203,129,.12)' : 'rgba(246,70,93,.12)',
-                      color:      t.side === 'buy' ? 'var(--green)' : 'var(--red)',
-                    }}>
-                    {t.side.toUpperCase()}
-                  </span>
-                  <span style={{ color: 'var(--text2)' }}>${t.amountUSD.toFixed(2)}</span>
-                  <span className="font-mono text-[10px]"
-                    style={{ color: t.status === 'confirmed' ? 'var(--green)' : t.status === 'simulated' ? 'var(--yellow)' : t.status === 'blocked' ? 'var(--text3)' : 'var(--red)' }}>
-                    {t.status}
-                  </span>
-                  <span className="font-mono text-[10px]" style={{ color: 'var(--text3)' }}>
-                    {new Date(t.timestamp).toLocaleTimeString()}
-                  </span>
-                </div>
-              ))
+              : trades.slice(0, 12).map(t => {
+                const method = executionMethod(t)
+                const explorerUrl = t.txHash && method === 'keeperhub' ? `${GOAT_EXPLORER[network]}/tx/${t.txHash}` : null
+                return (
+                  <div key={t.id} className="flex flex-col gap-1 px-4 py-2.5 text-xs" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold" style={{ color: 'var(--text)' }}>{t.symbol}</span>
+                        <span className="font-mono px-2 py-0.5 rounded text-[9px] font-bold"
+                          style={{
+                            background: t.side === 'buy' ? 'rgba(14,203,129,.12)' : 'rgba(246,70,93,.12)',
+                            color:      t.side === 'buy' ? 'var(--green)' : 'var(--red)',
+                          }}>
+                          {t.side.toUpperCase()}
+                        </span>
+                      </div>
+                      <span style={{ color: 'var(--text2)' }}>${t.amountUSD.toFixed(2)}</span>
+                      <span className="font-mono text-[10px]"
+                        style={{ color: t.status === 'confirmed' ? 'var(--green)' : t.status === 'simulated' ? 'var(--yellow)' : t.status === 'blocked' ? 'var(--text3)' : 'var(--red)' }}>
+                        {t.status}
+                      </span>
+                      <span className="font-mono text-[10px]" style={{ color: 'var(--text3)' }}>
+                        {new Date(t.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-mono text-[10px]" style={{ color: method === 'keeperhub' ? 'var(--green)' : 'var(--text3)' }}>
+                        {method === 'keeperhub' ? '● KeeperHub' : method === 'simulated' ? '○ Simulated' : t.reason ?? '—'}
+                      </span>
+                      {explorerUrl
+                        ? <a href={explorerUrl} target="_blank" rel="noopener noreferrer"
+                            className="font-mono text-[10px] underline" style={{ color: 'var(--text2)' }}>
+                            {shortHash(t.txHash)} ↗
+                          </a>
+                        : t.txHash && <code className="font-mono text-[10px]" style={{ color: 'var(--text3)' }}>{shortHash(t.txHash)}</code>
+                      }
+                    </div>
+                  </div>
+                )
+              })
             }
           </div>
         </>

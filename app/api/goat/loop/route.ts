@@ -17,6 +17,7 @@ import { rateLimit }         from '@/lib/rateLimit'
 import { persistTrades }   from '@/lib/supabase/trades'
 import { createServerClient } from '@/lib/supabase'
 import type { GoatTrade } from '@/lib/goat/store'
+import { publicMarket } from '@/lib/binance'
 
 export const dynamic     = 'force-dynamic'
 export const maxDuration = 55
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     const {
       privateKey, agentAddress, network, riskProfile, todayTrades,
-      portfolioUSD, drawdownPct, dryRun = true, signals = [],
+      portfolioUSD: clientPortfolioUSD, drawdownPct, dryRun = true, signals = [],
     } = body
 
     // KeeperHub mode (mainnet, real trades) only needs the address — it
@@ -71,7 +72,18 @@ export async function POST(req: NextRequest) {
       : GoatClient.fromAddress(agentAddress!, network)
 
     // ── 1. Portfolio snapshot ──────────────────────────────────────────────
+    // Derive USD value from the REAL onchain balance + a live BTC price,
+    // instead of trusting whatever portfolioUSD the client sent. That value
+    // used to be a closed loop — the server only ever echoed it back — so on
+    // a fresh session it stayed stuck at 0 forever and every position sized
+    // to $0 (client.sendBTC never had a real amount to send). See Session 10
+    // fix notes.
     const btcBalance = await client.getBTCBalance()
+    const btcPrices  = await publicMarket.getPrices(['BTCUSDT']).catch(() => ({} as Record<string, number>))
+    const btcPrice   = btcPrices.BTCUSDT
+    const portfolioUSD = btcPrice
+      ? btcBalance * btcPrice
+      : (clientPortfolioUSD || 0)   // price feed unreachable — fall back rather than zeroing out
 
     // ── 2. Evaluate signals against rules ─────────────────────────────────
     // Filter signals with score above threshold

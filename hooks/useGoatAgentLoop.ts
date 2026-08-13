@@ -95,6 +95,10 @@ export function useGoatAgentLoop() {
       updateSession({
         currentUSD:    newUSD,
         peakValueUSD:  Math.max(session?.peakValueUSD ?? 0, newUSD),
+        // Session used to start at initSession(0), so startValueUSD was
+        // permanently 0 and PnL read as +100% from a fake baseline. Seed it
+        // from the first real value the server ever returns.
+        startValueUSD: session?.startValueUSD || newUSD,
         drawdownPct:   data.drawdownPct ?? drawdownPct,
         totalTrades:   (session?.totalTrades ?? 0) + (data.executed ?? 0),
         todayTrades:   todayTrades() + (data.executed ?? 0),

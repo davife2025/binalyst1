@@ -146,6 +146,9 @@ export function checkGoatGuardrails(params: {
   if (todayTrades >= profile.maxDailyTrades)
     return { allowed: false, reason: `Daily trade limit ${profile.maxDailyTrades} reached` }
 
+  if (portfolioUSD < 1)
+    return { allowed: false, reason: `Portfolio value $${portfolioUSD.toFixed(2)} too low or unavailable — check BTC price feed` }
+
   const maxPositionUSD = portfolioUSD * (profile.maxPositionPct / 100)
   if (amountUSD > maxPositionUSD)
     return { allowed: false, reason: `Position $${amountUSD.toFixed(2)} exceeds ${profile.maxPositionPct}% cap ($${maxPositionUSD.toFixed(2)})` }

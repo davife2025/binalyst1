@@ -22,6 +22,25 @@ import { publicMarket } from '@/lib/binance'
 export const dynamic     = 'force-dynamic'
 export const maxDuration = 55
 
+// Binance's global API (api.binance.com) returns HTTP 451 for US-based IPs.
+// If this route runs in a US server region, publicMarket.getPrices() fails
+// on every call — silently, via its own try/catch — and portfolioUSD falls
+// back to 0 forever. Try Binance first, then CoinGecko (no geo-restriction,
+// no key required) as a fallback so a single blocked source can't zero out
+// position sizing.
+async function getBTCUSDPrice(): Promise<number | undefined> {
+  try {
+    const prices = await publicMarket.getPrices(['BTCUSDT'])
+    if (prices.BTCUSDT) return prices.BTCUSDT
+  } catch {}
+  try {
+    const res  = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+    const data = await res.json()
+    if (data?.bitcoin?.usd) return data.bitcoin.usd
+  } catch {}
+  return undefined
+}
+
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
   const rl = rateLimit(`goat-loop:${ip}`, 'ai-chat')
@@ -79,11 +98,10 @@ export async function POST(req: NextRequest) {
     // to $0 (client.sendBTC never had a real amount to send). See Session 10
     // fix notes.
     const btcBalance = await client.getBTCBalance()
-    const btcPrices  = await publicMarket.getPrices(['BTCUSDT']).catch(() => ({} as Record<string, number>))
-    const btcPrice   = btcPrices.BTCUSDT
+    const btcPrice   = await getBTCUSDPrice()
     const portfolioUSD = btcPrice
       ? btcBalance * btcPrice
-      : (clientPortfolioUSD || 0)   // price feed unreachable — fall back rather than zeroing out
+      : (clientPortfolioUSD || 0)   // both price sources unreachable — fall back rather than zeroing out
 
     // ── 2. Evaluate signals against rules ─────────────────────────────────
     // Filter signals with score above threshold

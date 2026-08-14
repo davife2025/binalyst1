@@ -261,10 +261,19 @@ export class GoatClient {
    * real value is at risk.
    */
   async sendBTC(to: string, amount: number, taskId = `sendbtc-${Date.now()}`): Promise<{ txHash: string; success: boolean; error?: string; keeperhub: boolean }> {
+    // Normalize to 8 decimal places (satoshi precision) before stringifying.
+    // Upstream float division (amountUSD / btcPrice, portfolio-percentage
+    // splits, etc.) can produce values like 0.0000073965499999999995 — a
+    // valid JS number, but ethers.parseEther() rejects any string with more
+    // than 18 fractional digits, and KeeperHub's API rejects malformed
+    // decimals too. .toFixed(8) is standard BTC precision (1 satoshi) and
+    // removes the float noise before it reaches either path below.
+    const amountStr = amount.toFixed(8)
+
     if (hasKeeperHub()) {
       const kh = getKeeperHubClient()
       const out = await kh.safeTransfer(
-        { chainId: GOAT_CHAIN_ID[this.network], recipientAddress: to, amount: amount.toString() },
+        { chainId: GOAT_CHAIN_ID[this.network], recipientAddress: to, amount: amountStr },
         taskId
       )
       if (!out.success) return { txHash: '', success: false, error: out.error ?? 'KeeperHub transfer failed', keeperhub: true }
@@ -279,7 +288,7 @@ export class GoatClient {
     // KeeperHub key is configured. No real value at risk on testnet3.
     if (!this.wallet) return { txHash: '', success: false, error: 'No signer available for testnet3 dry-run send', keeperhub: false }
     try {
-      const tx  = await this.wallet.sendTransaction({ to, value: ethers.parseEther(amount.toString()) })
+      const tx  = await this.wallet.sendTransaction({ to, value: ethers.parseEther(amountStr) })
       const rec = await tx.wait()
       return { txHash: rec?.hash ?? tx.hash, success: true, keeperhub: false }
     } catch (err: any) {
@@ -300,7 +309,10 @@ export class GoatClient {
     }
 
     const quoter   = new ethers.Contract(UNISWAP_V3_CONTRACTS.quoterV2, QUOTER_V2_ABI, this.provider)
-    const amountIn = ethers.parseUnits(params.amountIn.toString(), params.decimalsIn)
+    // Same float-precision issue as sendBTC() — cap fractional digits to
+    // the token's own decimals (or 8, whichever is smaller) so upstream
+    // float division can't produce a string parseUnits rejects.
+    const amountIn = ethers.parseUnits(params.amountIn.toFixed(Math.min(params.decimalsIn, 8)), params.decimalsIn)
 
     const [amountOut] = await quoter.quoteExactInputSingle.staticCall({
       tokenIn:           params.tokenIn,
@@ -347,7 +359,9 @@ export class GoatClient {
 
     const kh        = getKeeperHubClient()
     const chainId   = GOAT_CHAIN_ID.mainnet
-    const amountIn  = ethers.parseUnits(params.amountIn.toString(), params.decimalsIn)
+    // Same fix as getSwapQuote() above — cap fractional digits so float
+    // noise from upstream division can't produce a string parseUnits rejects.
+    const amountIn  = ethers.parseUnits(params.amountIn.toFixed(Math.min(params.decimalsIn, 8)), params.decimalsIn)
 
     try {
       // Approve router if tokenIn is ERC-20 (not native BTC) — read

@@ -264,9 +264,21 @@ export class KeeperHubClient {
     if (!broadcast.executionId) {
       return { success: false, status: null, error: broadcast.error ?? 'No executionId returned' }
     }
-    const settled = await this.pollUntilSettled(broadcast.executionId)
+    const settled  = await this.pollUntilSettled(broadcast.executionId)
     const verified = settled.receipts.length > 0 && settled.receipts.every(r => r.verified)
-    return { success: settled.status === 'completed' && verified, status: settled }
+    const success  = settled.status === 'completed' && verified
+    if (success) return { success: true, status: settled }
+
+    // This branch used to return { success: false, status: settled } with
+    // no `error` — the caller then fell back to a generic "transfer
+    // failed" message, discarding whatever KeeperHub actually reported
+    // (revert reason, error, or an unverified/incomplete receipt).
+    const reason = settled.revertReason
+      ?? settled.error
+      ?? (settled.receipts.length > 0
+          ? `Broadcast but not verified (status: ${settled.receipts.map(r => r.receiptStatus).join(', ')})`
+          : `Execution ended in status "${settled.status}"`)
+    return { success: false, status: settled, error: reason }
   }
 
   /**
@@ -290,9 +302,19 @@ export class KeeperHubClient {
     if (!broadcast.executionId) {
       return { success: false, status: null, error: broadcast.error ?? 'No executionId returned' }
     }
-    const settled = await this.pollUntilSettled(broadcast.executionId)
+    const settled  = await this.pollUntilSettled(broadcast.executionId)
     const verified = settled.receipts.length > 0 && settled.receipts.every(r => r.verified)
-    return { success: settled.status === 'completed' && verified, status: settled }
+    const success  = settled.status === 'completed' && verified
+    if (success) return { success: true, status: settled }
+
+    // Same fix as safeTransfer() above — surface the real reason instead
+    // of a bare success:false.
+    const reason = settled.revertReason
+      ?? settled.error
+      ?? (settled.receipts.length > 0
+          ? `Broadcast but not verified (status: ${settled.receipts.map(r => r.receiptStatus).join(', ')})`
+          : `Execution ended in status "${settled.status}"`)
+    return { success: false, status: settled, error: reason }
   }
 }
 
